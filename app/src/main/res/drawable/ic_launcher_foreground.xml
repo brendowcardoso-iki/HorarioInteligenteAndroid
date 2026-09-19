@@ -1,0 +1,44 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer Clock Ring -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,28 A26,26 0 1,1 53.9,28 Z"
+        android:strokeWidth="3.5"
+        android:strokeColor="#38BDF8" />
+    <!-- Clock Hands: 10:10 style -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,54 L54,37"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,54 L67,46"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeColor="#60A5FA" />
+    <!-- Center Dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,54m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+    <!-- Sparkle / Smart Star badge at top right -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M75,32 L76.8,36.2 L81,38 L76.8,39.8 L75,44 L73.2,39.8 L69,38 L73.2,36.2 Z" />
+    <!-- Checkmark badge at bottom right -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M70,68m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M65.5,68 L68.5,71 L74.5,65"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeColor="#FFFFFF" />
+</vector>

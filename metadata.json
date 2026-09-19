@@ -1,0 +1,6 @@
+{
+  "name": "Horário Inteligente",
+  "description": "Aplicativo inteligente de gestão de horários, rotinas de alta performance e protocolos operacionais.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
