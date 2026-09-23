@@ -356,7 +356,7 @@ fun MainScheduleScreen(
 
                     // "Conectar" button: Blue button with Docs icon, rounded ends (CircleShape)
                     Button(
-                        onClick = { viewModel.isDriveSyncOpen.value = true },
+                        onClick = { /* Não faz nada */ },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A73E8)),
                         shape = CircleShape,
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
@@ -491,7 +491,7 @@ fun MainScheduleScreen(
                                 viewModel.deleteStep(it, index)
                             }
                         },
-                        onConnectDrive = { viewModel.isDriveSyncOpen.value = true },
+                        onConnectDrive = { /* Não faz nada */ },
                         onLoadTestExample = { viewModel.loadUserDocsExample() },
                         modifier = Modifier.fillMaxSize()
                     )

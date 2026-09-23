@@ -463,6 +463,37 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         return repository.googleDriveService.googleSignInClient.signInIntent
     }
 
+    fun getChooseAccountIntent(): Intent {
+        return repository.googleDriveService.getChooseAccountIntent()
+    }
+
+    fun handleAccountChosen(accountEmail: String, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            isDriveAuthenticating.value = true
+            driveSyncStatusMessage.value = "Conectando à conta Google: $accountEmail..."
+            try {
+                repository.googleDriveService.initializeDriveWithEmail(accountEmail)
+                val displayName = accountEmail.substringBefore("@").replace(".", " ")
+                    .split(" ")
+                    .joinToString(" ") { it.replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase(Locale.getDefault()) else char.toString() } }
+                repository.setDriveLoggedIn(true, accountEmail, displayName)
+                val timeStr = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+                repository.setDriveSyncLastTime(timeStr)
+                repository.refreshDriveItems(null)
+                val msg = "Conectado com sucesso como $displayName ($accountEmail)!"
+                driveSyncStatusMessage.value = msg
+                onComplete(true, msg)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val err = "Falha ao conectar conta Google: ${e.localizedMessage}"
+                driveSyncStatusMessage.value = err
+                onComplete(false, err)
+            } finally {
+                isDriveAuthenticating.value = false
+            }
+        }
+    }
+
     fun handleGoogleSignInResult(data: Intent?, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             isDriveAuthenticating.value = true
@@ -488,7 +519,11 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                val err = "Falha no login Google: ${e.localizedMessage ?: "Cancelado ou sem resposta"}"
+                val err = if (e is ApiException && e.statusCode == 10) {
+                    "Selecione sua conta Google diretamente para conectar ao Drive."
+                } else {
+                    "Falha no login Google: ${e.localizedMessage ?: "Cancelado ou sem resposta"}"
+                }
                 driveSyncStatusMessage.value = err
                 onComplete(false, err)
             } finally {

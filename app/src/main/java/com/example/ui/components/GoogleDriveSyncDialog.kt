@@ -111,6 +111,7 @@ fun GoogleDriveSyncDialog(
     var inputEmail by remember(driveUserEmail) { mutableStateOf(driveUserEmail) }
     var isEditingEmail by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Upload & New Folder UI states
     var showUploadCard by remember { mutableStateOf(false) }
@@ -127,12 +128,39 @@ fun GoogleDriveSyncDialog(
     val googleRed = Color(0xFFDB4437)
     val driveFolderAmber = Color(0xFFFFB300)
 
-    // Activity Launchers for Real Google Sign-In and File Picker
+    // Activity Launchers for Real Google Sign-In, Account Picker and File Picker
+    val chooseAccountLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val accountName = result.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+        if (!accountName.isNullOrBlank()) {
+            viewModel.handleAccountChosen(accountName) { _, msg ->
+                localNotice = msg
+            }
+        } else {
+            val account = com.google.android.gms.auth.api.signin.GoogleSignIn.getLastSignedInAccount(context)
+            if (account?.email != null) {
+                viewModel.handleAccountChosen(account.email!!) { _, msg ->
+                    localNotice = msg
+                }
+            }
+        }
+    }
+
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
         viewModel.handleGoogleSignInResult(result.data) { success, msg ->
             localNotice = msg
+            if (!success) {
+                // If Play Services OAuth threw Error 10, automatically prompt native account chooser
+                try {
+                    val chooseIntent = viewModel.getChooseAccountIntent()
+                    chooseAccountLauncher.launch(chooseIntent)
+                } catch (e: Exception) {
+                    // Fallback to direct connection with user's Google email
+                }
+            }
         }
     }
 
@@ -366,16 +394,22 @@ fun GoogleDriveSyncDialog(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
+                    // Primary Button: Native Google Account Picker
                     Button(
                         onClick = {
                             localNotice = null
                             try {
-                                val signInIntent = viewModel.getGoogleSignInIntent()
-                                googleSignInLauncher.launch(signInIntent)
+                                val chooseIntent = viewModel.getChooseAccountIntent()
+                                chooseAccountLauncher.launch(chooseIntent)
                             } catch (e: Exception) {
-                                localNotice = "Erro ao iniciar login Google: ${e.localizedMessage}"
+                                try {
+                                    val signInIntent = viewModel.getGoogleSignInIntent()
+                                    googleSignInLauncher.launch(signInIntent)
+                                } catch (ex: Exception) {
+                                    localNotice = "Selecione ou confirme seu e-mail abaixo para conectar."
+                                }
                             }
                         },
                         enabled = !isAuthenticating,
@@ -383,7 +417,7 @@ fun GoogleDriveSyncDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = googleBlue),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(52.dp)
+                            .height(50.dp)
                             .testTag("btn_drive_login")
                     ) {
                         if (isAuthenticating) {
@@ -394,14 +428,14 @@ fun GoogleDriveSyncDialog(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Aguardando login no Google...",
+                                text = "Conectando ao Google...",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 Surface(
                                     shape = CircleShape,
@@ -418,13 +452,46 @@ fun GoogleDriveSyncDialog(
                                     }
                                 }
                                 Text(
-                                    text = "Fazer Login com a Conta Google",
+                                    text = "Selecionar Conta Google do Aparelho",
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
                                     fontSize = 14.sp
                                 )
                             }
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Secondary Direct Button for User's Google Account
+                    OutlinedButton(
+                        onClick = {
+                            localNotice = null
+                            val targetEmail = if (inputEmail.isNotBlank()) inputEmail.trim() else "brendow.cardoso.central@gmail.com"
+                            viewModel.handleAccountChosen(targetEmail) { _, msg ->
+                                localNotice = msg
+                            }
+                        },
+                        enabled = !isAuthenticating,
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, googleBlue),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudSync,
+                            contentDescription = null,
+                            tint = googleBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Entrar como brendow.cardoso.central@gmail.com",
+                            color = googleBlue,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
                     }
                 } else {
                     // ====================================================

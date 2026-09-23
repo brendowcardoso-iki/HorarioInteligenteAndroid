@@ -1,5 +1,8 @@
 package com.example.data.remote
 
+import android.accounts.Account
+import android.accounts.AccountManager
+import android.content.Intent
 import android.content.Context
 import com.example.data.model.DriveItem
 import com.example.data.model.DriveItemType
@@ -28,6 +31,14 @@ class GoogleDriveService(private val context: Context) {
 
     private var driveClient: Drive? = null
     private var currentAccount: GoogleSignInAccount? = null
+    private var currentAccountEmail: String? = null
+
+    val scopes = listOf(
+        DriveScopes.DRIVE_FILE,
+        DriveScopes.DRIVE_APPDATA,
+        DriveScopes.DRIVE_READONLY,
+        "https://www.googleapis.com/auth/documents.readonly"
+    )
 
     val signInOptions: GoogleSignInOptions by lazy {
         GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -45,14 +56,41 @@ class GoogleDriveService(private val context: Context) {
         GoogleSignIn.getClient(context, signInOptions)
     }
 
+    fun getChooseAccountIntent(): Intent {
+        val credential = GoogleAccountCredential.usingOAuth2(context, scopes)
+        return credential.newChooseAccountIntent()
+    }
+
+    /**
+     * Initializes Drive API client using direct Google account email.
+     */
+    fun initializeDriveWithEmail(accountEmail: String): Drive {
+        currentAccountEmail = accountEmail
+        val credential = GoogleAccountCredential.usingOAuth2(context, scopes).apply {
+            selectedAccountName = accountEmail
+        }
+
+        val drive = Drive.Builder(
+            AndroidHttp.newCompatibleTransport(),
+            GsonFactory.getDefaultInstance(),
+            credential
+        )
+            .setApplicationName("Horario Inteligente")
+            .build()
+
+        this.driveClient = drive
+        return drive
+    }
+
     /**
      * Initializes Drive API client after successful Google Sign-In.
      */
     fun initializeDriveWithAccount(account: GoogleSignInAccount): Drive {
         currentAccount = account
+        currentAccountEmail = account.email
         val credential = GoogleAccountCredential.usingOAuth2(
             context,
-            Collections.singleton(DriveScopes.DRIVE_FILE)
+            scopes
         ).apply {
             selectedAccount = account.account
         }
