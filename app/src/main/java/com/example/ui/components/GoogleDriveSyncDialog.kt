@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -123,6 +126,28 @@ fun GoogleDriveSyncDialog(
     val googleYellow = Color(0xFFF4B400)
     val googleRed = Color(0xFFDB4437)
     val driveFolderAmber = Color(0xFFFFB300)
+
+    // Activity Launchers for Real Google Sign-In and File Picker
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        viewModel.handleGoogleSignInResult(result.data) { success, msg ->
+            localNotice = msg
+        }
+    }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.uploadLocalFileToDrive(uri, currentFolderId) { success, msg ->
+                localNotice = msg
+                if (success) {
+                    showUploadCard = false
+                }
+            }
+        }
+    }
 
     // Current Folder resolution
     val currentFolder = remember(currentFolderId, driveItems) {
@@ -257,7 +282,7 @@ fun GoogleDriveSyncDialog(
                 // ====================================================
                 if (!isLoggedIn) {
                     Text(
-                        text = "ÁREA DE LOGIN",
+                        text = "CONEXÃO COM GOOGLE DRIVE",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Black,
                         letterSpacing = 1.2.sp,
@@ -267,132 +292,90 @@ fun GoogleDriveSyncDialog(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Conecte sua conta do Google Drive para acessar suas pastas, visualizar seus arquivos e fazer uploads diretamente na nuvem.",
+                        text = "Conecte sua conta do Google para navegar em suas pastas, visualizar documentos e enviar backups e arquivos diretamente para o seu Google Drive.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 18.sp
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = googleBlue,
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = driveUserName.take(1).uppercase(),
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 18.sp
-                                        )
-                                    }
-                                }
-
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = driveUserName,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = inputEmail,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-
-                                TextButton(
-                                    onClick = { isEditingEmail = !isEditingEmail },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (isEditingEmail) "Pronto" else "Alterar",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = googleBlue
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = driveFolderAmber,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Navegue pelas pastas do seu Google Drive",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
                             }
 
-                            if (isEditingEmail) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                OutlinedTextField(
-                                    value = inputEmail,
-                                    onValueChange = { inputEmail = it },
-                                    label = { Text("E-mail Google") },
-                                    singleLine = true,
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Mail, contentDescription = null, tint = googleBlue, modifier = Modifier.size(18.dp))
-                                    },
-                                    keyboardOptions = KeyboardOptions(
-                                        keyboardType = KeyboardType.Email,
-                                        imeAction = ImeAction.Done
-                                    ),
-                                    keyboardActions = KeyboardActions(onDone = {
-                                        focusManager.clearFocus()
-                                        isEditingEmail = false
-                                    }),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = googleBlue,
-                                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                                    ),
-                                    shape = RoundedCornerShape(4.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = null,
+                                    tint = googleBlue,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Faça upload de rotinas, Google Docs e arquivos locais",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = googleGreen,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Autenticação oficial e segura com conta Google",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = googleGreen,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Permissões de Nuvem: Acesso autorizado a arquivos, pastas e rotinas vinculadas à sua conta Google Drive.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 15.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
                             localNotice = null
-                            val finalEmail = if (inputEmail.isNotBlank()) inputEmail.trim() else "brendow.cardoso.central@gmail.com"
-                            viewModel.loginToGoogleDrive(finalEmail) { _, msg ->
-                                localNotice = msg
+                            try {
+                                val signInIntent = viewModel.getGoogleSignInIntent()
+                                googleSignInLauncher.launch(signInIntent)
+                            } catch (e: Exception) {
+                                localNotice = "Erro ao iniciar login Google: ${e.localizedMessage}"
                             }
                         },
                         enabled = !isAuthenticating,
@@ -400,7 +383,7 @@ fun GoogleDriveSyncDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = googleBlue),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(50.dp)
+                            .height(52.dp)
                             .testTag("btn_drive_login")
                     ) {
                         if (isAuthenticating) {
@@ -411,31 +394,31 @@ fun GoogleDriveSyncDialog(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Autenticando com Google...",
+                                text = "Aguardando login no Google...",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                         } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Surface(
                                     shape = CircleShape,
                                     color = Color.White,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(24.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
                                             text = "G",
                                             color = googleBlue,
                                             fontWeight = FontWeight.Black,
-                                            fontSize = 14.sp
+                                            fontSize = 15.sp
                                         )
                                     }
                                 }
                                 Text(
-                                    text = "Fazer Login no Google Drive",
+                                    text = "Fazer Login com a Conta Google",
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
                                     fontSize = 14.sp
@@ -695,10 +678,10 @@ fun GoogleDriveSyncDialog(
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                // Tab Selector: Backup da Rotina vs Novo Documento
+                                // Tab Selector: Backup da Rotina vs Novo Documento vs Arquivo do Celular
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(4.dp),
@@ -713,7 +696,7 @@ fun GoogleDriveSyncDialog(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "Backup Rotina (${allItems.size})",
+                                                text = "Backup JSON",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (uploadMode == 0) Color.White else MaterialTheme.colorScheme.onSurface
@@ -734,10 +717,31 @@ fun GoogleDriveSyncDialog(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "Novo Documento Docs",
+                                                text = "Google Docs",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (uploadMode == 1) Color.White else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = if (uploadMode == 2) googleBlue else MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, if (uploadMode == 2) googleBlue else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { uploadMode = 2 }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "Do Celular",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (uploadMode == 2) Color.White else MaterialTheme.colorScheme.onSurface
                                             )
                                         }
                                     }
@@ -788,7 +792,7 @@ fun GoogleDriveSyncDialog(
                                             Text("Fazer Upload do Backup no Drive", color = Color.White, fontWeight = FontWeight.Bold)
                                         }
                                     }
-                                } else {
+                                } else if (uploadMode == 1) {
                                     // New Google Doc mode
                                     OutlinedTextField(
                                         value = uploadFileName,
@@ -846,6 +850,41 @@ fun GoogleDriveSyncDialog(
                                             Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Text("Salvar Google Doc na Nuvem", color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                } else {
+                                    // Mode 2: Local file upload from device
+                                    Text(
+                                        text = "Selecione qualquer arquivo (PDF, TXT, imagem, planilha, áudio, backup) do armazenamento do seu aparelho para enviar à pasta selecionada do Drive.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        lineHeight = 16.sp
+                                    )
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Button(
+                                        onClick = {
+                                            localNotice = null
+                                            try {
+                                                filePickerLauncher.launch("*/*")
+                                            } catch (e: Exception) {
+                                                localNotice = "Erro ao abrir seletor de arquivos: ${e.localizedMessage}"
+                                            }
+                                        },
+                                        enabled = !isSyncing,
+                                        shape = RoundedCornerShape(4.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = googleBlue),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (isSyncing) {
+                                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Enviando arquivo...", color = Color.White, fontWeight = FontWeight.Bold)
+                                        } else {
+                                            Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Escolher Arquivo do Dispositivo", color = Color.White, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }

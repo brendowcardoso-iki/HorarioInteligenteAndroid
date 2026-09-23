@@ -2,11 +2,14 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.common.api.ApiException
 import com.example.data.local.AppDatabase
 import com.example.data.model.ActivityCategory
 import com.example.data.model.ActivityCustomization
@@ -453,6 +456,96 @@ class ScheduleViewModel(application: Application) : AndroidViewModel(application
         currentDriveFolderId.value = folderId
         viewModelScope.launch {
             repository.refreshDriveItems(folderId)
+        }
+    }
+
+    fun getGoogleSignInIntent(): Intent {
+        return repository.googleDriveService.googleSignInClient.signInIntent
+    }
+
+    fun handleGoogleSignInResult(data: Intent?, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        viewModelScope.launch {
+            isDriveAuthenticating.value = true
+            driveSyncStatusMessage.value = "Autenticando com sua conta Google..."
+            try {
+                val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+                val account = task.getResult(ApiException::class.java)
+                if (account != null) {
+                    repository.googleDriveService.initializeDriveWithAccount(account)
+                    val email = account.email ?: "usuario.google@gmail.com"
+                    val name = account.displayName ?: email.substringBefore("@")
+                    repository.setDriveLoggedIn(true, email, name)
+                    val timeStr = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+                    repository.setDriveSyncLastTime(timeStr)
+                    repository.refreshDriveItems(null)
+                    val msg = "Conectado com sucesso como $name ($email)!"
+                    driveSyncStatusMessage.value = msg
+                    onComplete(true, msg)
+                } else {
+                    val msg = "Não foi possível autenticar na conta Google."
+                    driveSyncStatusMessage.value = msg
+                    onComplete(false, msg)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val err = "Falha no login Google: ${e.localizedMessage ?: "Cancelado ou sem resposta"}"
+                driveSyncStatusMessage.value = err
+                onComplete(false, err)
+            } finally {
+                isDriveAuthenticating.value = false
+            }
+        }
+    }
+
+    fun uploadLocalFileToDrive(
+        uri: Uri,
+        folderId: String?,
+        onComplete: (Boolean, String) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            isDriveSyncing.value = true
+            driveSyncStatusMessage.value = "Fazendo upload de arquivo para o Google Drive..."
+            try {
+                val contentResolver = getApplication<Application>().contentResolver
+                var fileName = "arquivo_upload"
+                var fileSize = 0L
+
+                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        if (nameIndex != -1) fileName = cursor.getString(nameIndex) ?: fileName
+                        if (sizeIndex != -1) fileSize = cursor.getLong(sizeIndex)
+                    }
+                }
+
+                val textContent = contentResolver.openInputStream(uri)?.use { stream ->
+                    stream.bufferedReader(Charsets.UTF_8).readText()
+                } ?: ""
+
+                val mimeType = contentResolver.getType(uri) ?: "text/plain"
+                val uploaded = repository.googleDriveService.uploadFile(
+                    fileName = fileName,
+                    content = textContent,
+                    mimeType = mimeType,
+                    parentFolderId = folderId
+                )
+
+                if (uploaded != null) {
+                    repository.addDriveItem(uploaded)
+                }
+                val nowStr = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+                repository.setDriveSyncLastTime(nowStr)
+                val msg = "Arquivo \"$fileName\" enviado com sucesso ao Google Drive!"
+                driveSyncStatusMessage.value = msg
+                onComplete(true, msg)
+            } catch (e: Exception) {
+                val err = "Erro no upload: ${e.localizedMessage}"
+                driveSyncStatusMessage.value = err
+                onComplete(false, err)
+            } finally {
+                isDriveSyncing.value = false
+            }
         }
     }
 
